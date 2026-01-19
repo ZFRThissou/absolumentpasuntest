@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
         pageType = 'videoFavorites'; 
     } else if (path.includes('audios')) {
         pageType = 'audioFavorites'; 
-    } else if (path.includes('/images')) {
+    } else if (path.includes('images')) {
         pageType = 'imageFavorites'; 
     } else {
         return;
