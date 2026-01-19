@@ -1,171 +1,152 @@
 document.addEventListener('DOMContentLoaded', function() {
     const videoGrid = document.querySelector('.video-grid');
-    if (!videoGrid) return;
+    if (!videoGrid) return; // Quitter si l'élément conteneur n'est pas trouvé
 
     let pageType;
     const path = window.location.pathname.toLowerCase();
 
-    // Détermination du type de page
+    // Détermination du type de page avec la correction pour les URL propres (ex: /vidéos)    
     if (path.includes('vid')) {
         pageType = 'videoFavorites'; 
     } else if (path.includes('audios')) {
         pageType = 'audioFavorites'; 
-    } else if (path.includes('images')) {
+    } else if (path.includes('/images')) {
         pageType = 'imageFavorites'; 
     } else {
         return;
     }
     
-    // --- FONCTIONS FAVORIS ---
+    // Fonction pour initialiser/mettre à jour le bouton de favoris
     function updateFavoriteButton(button, mèmeData, favoritesKey) {
         let favorites = JSON.parse(localStorage.getItem(favoritesKey)) || [];
+        
+        let isFavorite;
+        if (favoritesKey === 'audioFavorites') {
+            // Audio (chaîne simple)
+            isFavorite = favorites.includes(mèmeData.title);
+        } else {
+            // Vidéo et Image (objets {title, ext})
+            isFavorite = favorites.some(fav => fav.title === mèmeData.title);
+        }
+        //<img src="image/icones/telechargements.png" alt="Download Icon">
+        button.innerHTML = `<img src="${isFavorite ? 'image/icones/favoris_cliquer.png' : 'image/icones/favoris.png'}" alt="Favoris Icon">`;
+        button.onclick = function() {
+            toggleFavorite(button, mèmeData, favoritesKey);
+        };
+    }
+
+    // Fonction pour basculer l'état du favori
+    function toggleFavorite(button, mèmeData, favoritesKey) {
+        let favorites = JSON.parse(localStorage.getItem(favoritesKey)) || [];
+        
         let isFavorite;
         if (favoritesKey === 'audioFavorites') {
             isFavorite = favorites.includes(mèmeData.title);
         } else {
             isFavorite = favorites.some(fav => fav.title === mèmeData.title);
         }
-        button.innerHTML = `<img src="${isFavorite ? 'image/icones/favoris_cliquer.png' : 'image/icones/favoris.png'}" alt="Favoris Icon">`;
-        button.onclick = function(e) {
-            e.stopPropagation(); // Empêche d'ouvrir la modal en cliquant sur le bouton
-            toggleFavorite(button, mèmeData, favoritesKey);
-        };
-    }
-
-    function toggleFavorite(button, mèmeData, favoritesKey) {
-        let favorites = JSON.parse(localStorage.getItem(favoritesKey)) || [];
-        let isFavorite = (favoritesKey === 'audioFavorites') 
-            ? favorites.includes(mèmeData.title) 
-            : favorites.some(fav => fav.title === mèmeData.title);
 
         if (isFavorite) {
-            favorites = (favoritesKey === 'audioFavorites')
-                ? favorites.filter(favTitle => favTitle !== mèmeData.title)
-                : favorites.filter(favObj => favObj.title !== mèmeData.title);
+            // Retirer
+            if (favoritesKey === 'audioFavorites') {
+                favorites = favorites.filter(favTitle => favTitle !== mèmeData.title);
+            } else {
+                favorites = favorites.filter(favObj => favObj.title !== mèmeData.title);
+            }
+            //button.textContent = 'Ajouter aux favoris';
             button.querySelector('img').src = 'image/icones/favoris.png';
+            console.log(`${mèmeData.title} a été retiré des favoris!`);
         } else {
-            favorites.push(favoritesKey === 'audioFavorites' ? mèmeData.title : mèmeData);
+            // Ajouter
+            if (favoritesKey === 'audioFavorites') {
+                favorites.push(mèmeData.title); // Audio stocke juste le titre
+            } else {
+                favorites.push(mèmeData); // Vidéo/Image stocke l'objet {title, ext}
+            }
+            //button.textContent = 'Retirer des favoris';
             button.querySelector('img').src = 'image/icones/favoris_cliquer.png';
+            console.log(`${mèmeData.title} a été ajouté aux favoris!`);
         }
+
         localStorage.setItem(favoritesKey, JSON.stringify(favorites));
     }
 
-    // --- GESTION DE LA MODAL (POP-UP) ---
-    const modal = document.getElementById('video-modal');
-    const modalMediaContainer = document.getElementById('modal-media-container');
-    const modalTitle = document.getElementById('modal-title');
-    const closeModal = document.querySelector('.close-modal');
 
-    function openModal(title, mediaPath, type) {
-        modalTitle.innerText = decodeURIComponent(title);
-        modalMediaContainer.innerHTML = ''; // Vide le contenu précédent
-
-        if (type === 'video') {
-            modalMediaContainer.innerHTML = `<video controls autoplay style="width:100%"><source src="${mediaPath}"></video>`;
-        } else if (type === 'image') {
-            modalMediaContainer.innerHTML = `<img src="${mediaPath}" style="width:100%">`;
-        }
-
-        // Configuration des boutons de la modal
-        document.getElementById('modal-download').href = mediaPath;
-        document.getElementById('modal-share').onclick = () => {
-            const fullUrl = window.location.origin + window.location.pathname + '#' + encodeURIComponent(title);
-            navigator.clipboard.writeText(fullUrl).then(() => alert('Lien de partage copié !'));
-        };
-
-        modal.style.display = "flex";
-    }
-
-    if (closeModal) {
-        closeModal.onclick = () => {
-            modal.style.display = "none";
-            modalMediaContainer.innerHTML = '';
-            history.pushState("", document.title, window.location.pathname); // Nettoie l'URL
-        };
-    }
-
-    // --- CHARGEMENT DES DONNÉES ---
+    // 2. Charger les données JSON
     fetch('data/mèmes.json')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            const mèmeType = pageType.replace('Favorites', ''); 
-            const mèmes = data[mèmeType + 's']; 
+            const mèmeType = pageType.replace('Favorites', ''); // 'video', 'audio', 'image'
+            const mèmes = data[mèmeType + 's']; // 'videos', 'audios', 'images'
             
             mèmes.forEach(mème => {
                 const title = mème.title;
                 const ext = mème.ext;
-                const urlSlug = encodeURIComponent(title);
                 
-                let mediaPath = `image/mèmes/${mèmeType}s/${title}.${ext}`;
-                let cardContent = (mèmeType === 'video') 
-                    ? `<video><source src="${mediaPath}"></video>` 
-                    : (mèmeType === 'audio') 
-                    ? `<button class="button" data-sound="${mediaPath}">Play Sound</button>`
-                    : `<img src="${mediaPath}">`;
+                let mediaPath;
+                let cardContent;
+
+                if (mèmeType === 'video') {
+                    mediaPath = `image/mèmes/vidéos/${title}.${ext}`;
+                    cardContent = `<video controls><source src="${mediaPath}"></video>`;
+                } else if (mèmeType === 'audio') {
+                    mediaPath = `image/mèmes/audios/${title}.${ext}`;
+                    cardContent = `<button class="button" data-sound="${mediaPath}">Play Sound</button>`;
+                } else if (mèmeType === 'image') {
+                    mediaPath = `image/mèmes/images/${title}.${ext}`;
+                    cardContent = `<img src="${mediaPath}" alt="Image thumbnail">`;
+                }
                 
                 const cardHTML = document.createElement('div');
                 cardHTML.classList.add('video-card');
                 cardHTML.innerHTML = `
-                    <div class="media-preview" style="cursor:pointer">
-                        ${cardContent}
-                    </div>
+                    ${cardContent}
                     <div class="video-info">
                         <h3>${title}</h3>
                         <div class="video-actions">
                             <div class="add-to-favorites"></div>
-                            <a class="download-button" href="${mediaPath}" download onclick="event.stopPropagation()"><img src="image/icones/telechargements.png"></a>
-                            <img class="partage-button" src="image/icones/partager.png" style="cursor:pointer">
+                            <a class="download-button" href="${mediaPath}" download=""><img src="image/icones/telechargements.png" alt="Download Icon"></a>
+                            <img class="partage-button" src="image/icones/partager.png" alt="Share Icon" onclick="shareVideo('${mediaPath}', '${title}')">
                         </div>
                     </div>
                 `;
                 
-                // Clic sur la carte pour ouvrir la modal (uniquement Vidéo et Image)
-                if (mèmeType !== 'audio') {
-                    cardHTML.querySelector('.media-preview').onclick = () => {
-                        window.location.hash = urlSlug;
-                    };
-                }
-
-                // Bouton partage rapide
-                cardHTML.querySelector('.partage-button').onclick = (e) => {
-                    e.stopPropagation();
-                    window.location.hash = urlSlug;
-                };
-
                 videoGrid.appendChild(cardHTML);
 
+                // Initialiser l'état et l'événement du bouton de favoris
                 const favoriteButton = cardHTML.querySelector('.add-to-favorites');
                 updateFavoriteButton(favoriteButton, mème, pageType);
             });
 
-            // Gestion des Audios
+
+            // Initialiser la fonction Play Sound pour les audios
             if (mèmeType === 'audio') {
                 document.querySelectorAll('.button').forEach(button => {
-                    button.addEventListener('click', function(e) {
-                        const soundFile = e.target.getAttribute('data-sound');
+                    button.addEventListener('click', function(event) {
+                        const soundFile = event.target.getAttribute('data-sound');
+                        // L'élément audio doit exister dans audios.html
                         const audio = document.getElementById('audio'); 
-                        if (audio) { audio.src = soundFile; audio.play(); }
+                        if (audio) {
+                            audio.src = soundFile;
+                            audio.currentTime = 0;
+                            audio.play();
+                        }
                     });
                 });
             }
-
-            // --- GESTION DES ANCRES (#) AU CHARGEMENT ---
-            const handleHash = () => {
-                const hash = window.location.hash.substring(1);
-                if (hash) {
-                    const cleanHash = decodeURIComponent(hash);
-                    const foundMeme = mèmes.find(m => m.title === cleanHash);
-                    if (foundMeme) {
-                        const path = `image/mèmes/${mèmeType}s/${foundMeme.title}.${foundMeme.ext}`;
-                        openModal(foundMeme.title, path, mèmeType);
-                    }
-                }
-            };
-
-            window.addEventListener('hashchange', handleHash);
-            handleHash(); // Vérification initiale
-
-            if (typeof initializeSearch === 'function') initializeSearch();
+            if (typeof initializeSearch === 'function') {
+                initializeSearch();
+            } else {
+                console.error("Le script recherche.js n'a pas chargé la fonction initializeSearch.");
+            }
         })
-        .catch(error => console.error('Erreur:', error));
+        .catch(error => {
+            console.error('Erreur lors du chargement ou du traitement des mèmes:', error);
+            videoGrid.innerHTML = '<p>Désolé, impossible de charger le contenu. Vérifiez que le fichier mèmes.json est présent et que les URL sont correctes.</p>';
+        });
 });
