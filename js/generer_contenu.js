@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    // --- FONCTIONS FAVORIS ---
+    // --- FONCTIONS FAVORIS (Gardées de ton code original) ---
     function updateFavoriteButton(button, mèmeData, favoritesKey) {
         let favorites = JSON.parse(localStorage.getItem(favoritesKey)) || [];
         let isFavorite;
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         button.innerHTML = `<img src="${isFavorite ? 'image/icones/favoris_cliquer.png' : 'image/icones/favoris.png'}" alt="Favoris Icon">`;
         button.onclick = function(e) {
-            e.stopPropagation(); // Empêche d'ouvrir la modal en cliquant sur le bouton
+            e.stopPropagation(); 
             toggleFavorite(button, mèmeData, favoritesKey);
         };
     }
@@ -50,15 +50,17 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(favoritesKey, JSON.stringify(favorites));
     }
 
-    // --- GESTION DE LA MODAL (POP-UP) ---
+    // --- GESTION DE LA MODAL ---
     const modal = document.getElementById('video-modal');
     const modalMediaContainer = document.getElementById('modal-media-container');
     const modalTitle = document.getElementById('modal-title');
     const closeModal = document.querySelector('.close-modal');
 
     function openModal(title, mediaPath, type) {
+        if (!modal || !modalMediaContainer) return;
+        
         modalTitle.innerText = decodeURIComponent(title);
-        modalMediaContainer.innerHTML = ''; // Vide le contenu précédent
+        modalMediaContainer.innerHTML = ''; 
 
         if (type === 'video') {
             modalMediaContainer.innerHTML = `<video controls autoplay style="width:100%"><source src="${mediaPath}"></video>`;
@@ -66,12 +68,16 @@ document.addEventListener('DOMContentLoaded', function() {
             modalMediaContainer.innerHTML = `<img src="${mediaPath}" style="width:100%">`;
         }
 
-        // Configuration des boutons de la modal
-        document.getElementById('modal-download').href = mediaPath;
-        document.getElementById('modal-share').onclick = () => {
-            const fullUrl = window.location.origin + window.location.pathname + '#' + encodeURIComponent(title);
-            navigator.clipboard.writeText(fullUrl).then(() => alert('Lien de partage copié !'));
-        };
+        const downloadBtn = document.getElementById('modal-download');
+        if (downloadBtn) downloadBtn.href = mediaPath;
+
+        const shareBtn = document.getElementById('modal-share');
+        if (shareBtn) {
+            shareBtn.onclick = () => {
+                const fullUrl = window.location.origin + window.location.pathname + '#' + encodeURIComponent(title);
+                navigator.clipboard.writeText(fullUrl).then(() => alert('Lien de partage copié !'));
+            };
+        }
 
         modal.style.display = "flex";
     }
@@ -80,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
         closeModal.onclick = () => {
             modal.style.display = "none";
             modalMediaContainer.innerHTML = '';
-            history.pushState("", document.title, window.location.pathname); // Nettoie l'URL
+            history.pushState("", document.title, window.location.pathname); 
         };
     }
 
@@ -96,12 +102,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const ext = mème.ext;
                 const urlSlug = encodeURIComponent(title);
                 
+                // Correction du chemin des médias
                 let mediaPath = `image/mèmes/${mèmeType}s/${title}.${ext}`;
-                let cardContent = (mèmeType === 'video') 
-                    ? `<video><source src="${mediaPath}"></video>` 
-                    : (mèmeType === 'audio') 
-                    ? `<button class="button" data-sound="${mediaPath}">Play Sound</button>`
-                    : `<img src="${mediaPath}">`;
+                let cardContent = "";
+
+                if (mèmeType === 'video') {
+                    cardContent = `<video><source src="${mediaPath}"></video>`;
+                } else if (mèmeType === 'audio') {
+                    cardContent = `<button class="button" data-sound="${mediaPath}">Play Sound</button>`;
+                } else {
+                    cardContent = `<img src="${mediaPath}">`;
+                }
                 
                 const cardHTML = document.createElement('div');
                 cardHTML.classList.add('video-card');
@@ -119,18 +130,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 
-                // Clic sur la carte pour ouvrir la modal (uniquement Vidéo et Image)
-                if (mèmeType !== 'audio') {
-                    cardHTML.querySelector('.media-preview').onclick = () => {
+                // Événement clic sur la miniature
+                const preview = cardHTML.querySelector('.media-preview');
+                if (mèmeType !== 'audio' && preview) {
+                    preview.onclick = () => { window.location.hash = urlSlug; };
+                }
+
+                // Bouton partage
+                const shareIcon = cardHTML.querySelector('.partage-button');
+                if (shareIcon) {
+                    shareIcon.onclick = (e) => {
+                        e.stopPropagation();
                         window.location.hash = urlSlug;
                     };
                 }
-
-                // Bouton partage rapide
-                cardHTML.querySelector('.partage-button').onclick = (e) => {
-                    e.stopPropagation();
-                    window.location.hash = urlSlug;
-                };
 
                 videoGrid.appendChild(cardHTML);
 
@@ -149,23 +162,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
 
-            // --- GESTION DES ANCRES (#) AU CHARGEMENT ---
+            // --- GESTION DES ANCRES (#) ---
             const handleHash = () => {
                 const hash = window.location.hash.substring(1);
                 if (hash) {
                     const cleanHash = decodeURIComponent(hash);
                     const foundMeme = mèmes.find(m => m.title === cleanHash);
                     if (foundMeme) {
-                        const path = `image/mèmes/${mèmeType}s/${foundMeme.title}.${foundMeme.ext}`;
-                        openModal(foundMeme.title, path, mèmeType);
+                        const mPath = `image/mèmes/${mèmeType}s/${foundMeme.title}.${foundMeme.ext}`;
+                        openModal(foundMeme.title, mPath, mèmeType);
                     }
                 }
             };
 
             window.addEventListener('hashchange', handleHash);
-            handleHash(); // Vérification initiale
+            handleHash(); 
 
             if (typeof initializeSearch === 'function') initializeSearch();
         })
-        .catch(error => console.error('Erreur:', error));
+        .catch(error => {
+            console.error('Erreur:', error);
+            videoGrid.innerHTML = `<p>Erreur lors du chargement des vidéos.</p>`;
+        });
 });
+              
